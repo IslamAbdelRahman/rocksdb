@@ -8,6 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include "table/merger.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -40,14 +41,16 @@ class MergingIterator : public InternalIterator {
  public:
   MergingIterator(const Comparator* comparator, InternalIterator** children,
                   int n, bool is_arena_mode,
-                  const SliceTransform* const prefix_extractor)
+                  const SliceTransform* const prefix_extractor,
+                  ThreadPoolImpl* read_thread_pool = nullptr)
       : is_arena_mode_(is_arena_mode),
         comparator_(comparator),
         current_(nullptr),
         direction_(kForward),
         minHeap_(comparator_),
         prefix_extractor_(prefix_extractor),
-        pinned_iters_mgr_(nullptr) {
+        pinned_iters_mgr_(nullptr),
+        read_thread_pool_(read_thread_pool) {
     children_.resize(n);
     for (int i = 0; i < n; i++) {
       children_[i].Set(children[i]);
@@ -349,6 +352,7 @@ class MergingIterator : public InternalIterator {
   const SliceTransform* const prefix_extractor_;
   PinnedIteratorsManager* pinned_iters_mgr_;
   std::unique_ptr<std::string> prefix_;
+  ThreadPoolImpl* read_thread_pool_;
 
   IteratorWrapper* CurrentForward() const {
     assert(direction_ == kForward);
@@ -395,11 +399,11 @@ InternalIterator* NewMergingIterator(
 
 MergeIteratorBuilder::MergeIteratorBuilder(
     const Comparator* comparator, Arena* a,
-    const SliceTransform* const prefix_extractor)
+    const SliceTransform* const prefix_extractor, ThreadPoolImpl* thread_pool)
     : first_iter(nullptr), use_merging_iter(false), arena(a) {
   auto mem = arena->AllocateAligned(sizeof(MergingIterator));
-  merge_iter =
-      new (mem) MergingIterator(comparator, nullptr, 0, true, prefix_extractor);
+  merge_iter = new (mem) MergingIterator(comparator, nullptr, 0, true,
+                                         prefix_extractor, thread_pool);
 }
 
 void MergeIteratorBuilder::AddIterator(InternalIterator* iter) {

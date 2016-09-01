@@ -18,6 +18,7 @@
 #include <unordered_map>
 
 #include "rocksdb/listener.h"
+#include "rocksdb/threadpool.h"
 #include "rocksdb/universal_compaction.h"
 #include "rocksdb/version.h"
 #include "rocksdb/write_buffer_manager.h"
@@ -1518,6 +1519,12 @@ struct ReadOptions {
   // improve the performance of forward iteration on spinning disks.
   // Default: 0
   size_t readahead_size;
+
+  // Default: nullptr
+  std::shared_ptr<ThreadPool> read_thread_pool;
+
+  // Default: 8
+  int max_reading_threads;
 
   ReadOptions();
   ReadOptions(bool cksum, bool cache);

@@ -11,6 +11,7 @@
 
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/types.h"
+#include "util/threadpool_imp.h"
 
 namespace rocksdb {
 
@@ -41,7 +42,8 @@ class MergeIteratorBuilder {
   // arena: where the merging iterator needs to be allocated from.
   explicit MergeIteratorBuilder(
       const Comparator* comparator, Arena* arena,
-      const SliceTransform* const prefix_extractor = nullptr);
+      const SliceTransform* const prefix_extractor = nullptr,
+      ThreadPoolImpl* thread_pool = nullptr);
   ~MergeIteratorBuilder() {}
 
   // Add iter to the merging iterator.

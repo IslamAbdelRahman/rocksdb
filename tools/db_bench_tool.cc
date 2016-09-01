@@ -436,6 +436,8 @@ DEFINE_bool(show_table_properties, false,
 
 DEFINE_string(db, "", "Use the db with the following name.");
 
+DEFINE_int32(num_reading_threads, 8, "Number of threads in read thread pool");
+
 static bool ValidateCacheNumshardbits(const char* flagname, int32_t value) {
   if (value >= 20) {
     fprintf(stderr, "Invalid value for --%s: %d, must be < 20\n",
@@ -1740,6 +1742,7 @@ class Benchmark {
   int64_t merge_keys_;
   bool report_file_operations_;
   int cachedev_fd_;
+  std::shared_ptr<ThreadPool> read_thread_pool_;
 
   bool SanityCheck() {
     if (FLAGS_compression_ratio > 1) {
@@ -2036,6 +2039,9 @@ class Benchmark {
       }
       DestroyDB(FLAGS_db, options);
     }
+    if (FLAGS_num_reading_threads > 1) {
+      read_thread_pool_.reset(NewThreadPool(FLAGS_num_reading_threads));
+    }
   }
 
   ~Benchmark() {
@@ -2049,6 +2055,9 @@ class Benchmark {
       // Dtor for this env should run before cachedev_fd_ is closed
       flashcache_aware_env_ = nullptr;
       close(cachedev_fd_);
+    }
+    if (read_thread_pool_) {
+      read_thread_pool_->JoinAllThreads();
     }
   }
 
@@ -3397,6 +3406,10 @@ class Benchmark {
     int64_t read = 0;
     int64_t found = 0;
     ReadOptions options(FLAGS_verify_checksum, true);
+    if (FLAGS_num_reading_threads > 1) {
+      options.read_thread_pool = read_thread_pool_;
+      options.max_reading_threads = FLAGS_num_reading_threads;
+    }
     std::vector<Slice> keys;
     std::vector<std::unique_ptr<const char[]> > key_guards;
     std::vector<std::string> values(entries_per_batch_);
@@ -3457,6 +3470,10 @@ class Benchmark {
     int64_t found = 0;
     int64_t bytes = 0;
     ReadOptions options(FLAGS_verify_checksum, true);
+    if (FLAGS_num_reading_threads > 1) {
+      options.read_thread_pool = read_thread_pool_;
+      options.max_reading_threads = FLAGS_num_reading_threads;
+    }
     options.tailing = FLAGS_use_tailing_iterator;
 
     Iterator* single_iter = nullptr;
